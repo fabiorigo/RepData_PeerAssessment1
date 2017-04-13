@@ -5,21 +5,137 @@ output:
     keep_md: true
 ---
 
+In this peer assessment, the students of the Reproducible Research course shall extract, from a given dataset (contained at file *activity.zip* in this GitHub repository) some useful information to people which collect fitness related data with devices. 
+
+In the following sections, the steps for loading and processing the data in the dataset will be described, and the results of the analysis exposed. 
+
+
 
 ## Loading and preprocessing the data
+
+Firstly, the dataset must be unzipped and loaded into a data frame. **I'm assuming the working directory is already set to the root of this GitHub repository**. This can be achieved by the following code chunk: 
+
+```{r}
+#unzip("activity.zip")
+dataFrame <- read.csv("activity.csv")
+summary(dataFrame)
+```
+
+This data frame contains three columns, *steps*, *date* and *interval*, and about 17570 observations with missing values. **Interval** corresponds to the hour/minute of the day when the measurement was done. The device collected measures every 5 minutes. **Date** ranges from *01-Oct-2012* to *30-Nov-2012*. 
+
 
 
 
 ## What is mean total number of steps taken per day?
 
+One useful result that may help the users of this measurement device is the amount of steps done per day. In here, the missing values will be ignored. 
+
+To start with, let's discover how many steps the subject did per day: 
+
+```{r}
+attach(dataFrame)
+stepsPerDay <- aggregate(dataFrame$steps, list(date), sum, na.rm=TRUE)
+names(stepsPerDay) <- c("date", "steps")
+detach(dataFrame)
+head(stepsPerDay)
+```
+
+To understand the distribution of steps per day, let's first show them in a histogram.
+
+```{r}
+hist(stepsPerDay$steps, xlab = "Steps per day", ylab = "# of days", col = "light blue", main = "Occurrences of steps per day")
+```
+
+It's clear that normally this subject walks 10k to 15k steps per day. But what is the actual mean and median? 
+
+```{r}
+mean(stepsPerDay$Steps)
+median(stepsPerDay$Steps)
+```
+
 
 
 ## What is the average daily activity pattern?
 
+For the subject to understand how many steps he usually makes throughout a day, a time series plot might help. For this we need to calculate **means by interval**, instead of **sum by date**, as done before. 
+
+```{r}
+attach(dataFrame)
+meanStepsPerTimeOfDay <- aggregate(dataFrame$steps, list(interval), mean, na.rm=TRUE)
+names(meanStepsPerTimeOfDay) <- c("interval", "steps")
+detach(dataFrame)
+head(meanStepsPerTimeOfDay)
+plot(meanStepsPerTimeOfDay$interval, meanStepsPerTimeOfDay$steps, type = "l", xlab = "Hours/Minutes", ylab = "Average Steps", main = "Average Steps per Time of Day")
+```
+
+As expected, during the night this subject almost never walked. Although he usually walks around 30 to 100 steps per 5-minute interval, there is a **peak of activity between 8am and 10am**. 
+
+```{r}
+meanStepsPerTimeOfDay[which.max(meanStepsPerTimeOfDay$steps), ]
+```
+
+The 5-minute interval with most activity is 8:35 am, with an average of *206.1698 steps*. 
 
 
 ## Imputing missing values
 
+The high amount of missing values within this dataset might cause some bias on the analysis. In this section, we are imputing data within the data frame, *which was not collected by the device, but has its basis on other data collected*. The proposed strategy here is **using the mean amount of steps per time interval**, to fulfill NAs with data. It seems to be the one that least add noise to the real data. 
+
+The number of rows with missing values is: 
+
+```{r}
+sum(is.na(dataFrame))
+```
+
+The following code chunk makes the attribution of data, replacing NAs with the mean for that time interval, to a new adapted data frame. 
+
+```{r}
+dataFrameNoNA <- dataFrame
+for (i in 1:nrow(dataFrameNoNA)) {
+    if (is.na(dataFrameNoNA[i,1])) {
+        dataFrameNoNA[i,1] <- meanStepsPerTimeOfDay[meanStepsPerTimeOfDay[,1] == dataFrameNoNA[i,3], 2]
+    }
+}
+```
+
+So we repeat the calculation of the mean total number of steps taken per day, to check how much this imputing operation caused noise. 
+
+```{r}
+attach(dataFrameNoNA)
+stepsPerDayNoNA <- aggregate(dataFrameNoNA$steps, list(date), sum, na.rm=TRUE)
+names(stepsPerDayNoNA) <- c("date", "steps")
+detach(dataFrameNoNA)
+head(stepsPerDayNoNA)
+hist(stepsPerDayNoNA$steps, xlab = "Steps per day", ylab = "# of days", col = "dark red", main = "Occurrences of steps per day (after removing NAs)")
+mean(stepsPerDayNoNA$steps)
+median(stepsPerDayNoNA$steps)
+```
+
+From the above results, it is possible to notice: 
+
+1. The histogram behaves more like a normal distribution; 
+1. The mean and median now have the same value;
+1. The value of the mean/median are closer to the previous value for the median. 
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+For diferentiating the activity patterns between weekdays and weekends, we will need to categorize the dates within those two categories. This is done by *cbind*ing a new column to the data frame without NAs.
+
+```{r}
+Sys.setlocale("LC_TIME", "C")
+dataFrameNoNAWeekdays <- cbind(dataFrameNoNA, factor(ifelse(weekdays(as.Date(dataFrameNoNA$date)) == "Saturday" | weekdays(as.Date(dataFrameNoNA$date)) == "Sunday", "weekend", "weekday")))
+names(dataFrameNoNAWeekdays) <- c("steps", "date", "interval", "is.weekday")
+head(dataFrameNoNAWeekdays)
+```
+
+
+
+```{r}
+attach(dataFrameNoNAWeekdays)
+meanStepsPerTimeOfDayNoNAWeekdays <- aggregate(dataFrameNoNAWeekdays$steps, list(interval, is.weekday), mean)
+names(meanStepsPerTimeOfDayNoNAWeekdays) <- c("interval", "is.weekday", "steps")
+detach(dataFrameNoNAWeekdays)
+library(lattice)
+xyplot(steps ~ interval | is.weekday, meanStepsPerTimeOfDayNoNAWeekdays, type = "l", xlab = "Hours/Minutes", ylab = "Average Steps", main = "Average Steps per Time of Day", layout = c(1,2))
+```
