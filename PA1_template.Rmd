@@ -17,7 +17,7 @@ Firstly, the dataset must be unzipped and loaded into a data frame. **Here it is
 
 ```{r}
 Sys.setlocale("LC_TIME", "C")
-#unzip("activity.zip")
+unzip("activity.zip")
 DF <- read.csv("activity.csv")
 summary(DF)
 ```
